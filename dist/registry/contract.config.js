@@ -1,55 +1,37 @@
-import { DocumentConfig } from './types';
-import { BookingContractPdf } from '../templates/BookingContractPdf';
-import axios from 'axios';
-import { ParameterPdfText } from '../templates/ParameterPdfText';
-
-// Define the shape of the data expected by the template
-// This matches ContractPdfProps in BookingContractPdf.tsx (mostly)
-interface ContractData {
-    booking: any;
-    rentalDays: number;
-    basePrice: number;
-    optionsTotal: number;
-    discount: number;
-    total: number;
-    paidEquipments: any[];
-    paidOptions: any[];
-    optionAmount: (modifier: number, periodicity?: string) => number;
-    numberLocale: string;
-    parameterLabels: any;
-    t: (key: string, options?: any) => string;
-    type: 'CONTRACT' | 'INVOICE';
-}
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.contractConfig = void 0;
+const BookingContractPdf_1 = require("../templates/BookingContractPdf");
+const axios_1 = __importDefault(require("axios"));
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8080/api/v1';
-
-export const contractConfig: DocumentConfig<ContractData> = {
+exports.contractConfig = {
     key: 'CONTRACT',
-    template: BookingContractPdf,
-    fetchData: async (id: string, context: { token?: string, type?: 'CONTRACT' | 'INVOICE' }) => {
-
+    template: BookingContractPdf_1.BookingContractPdf,
+    fetchData: async (id, context) => {
         // 1. Fetch Booking Data from Backend
         // If token is missing, this call might fail if backend requires auth.
         // In dev with mock-server, this might hit the mock endpoints if configured.
         const authHeader = context.token ? { Authorization: context.token } : {};
-
         let booking;
         try {
             // Try fetching from backend
-            const response = await axios.get(`${BACKEND_API_URL}/providers/fleet-bookings/${id}`, {
+            const response = await axios_1.default.get(`${BACKEND_API_URL}/providers/fleet-bookings/${id}`, {
                 headers: authHeader
             });
             // Response wrapper likely { status: 'OK', data: { ... } } or just the object
             booking = response.data.data || response.data; // Handle ServiceResponse wrapper
-        } catch (error) {
+        }
+        catch (error) {
             console.error('[PDF Service] Backend Fetch Error:', error);
             // Fallback for development if backend is not reachable/mocked
             // THROWING error is better for production to surface issues.
             // But for this transition step, we might want to fail gracefully or use mock data.
             // Let's rethrow to show "Proper Integration".
-            throw new Error(`Failed to fetch booking ${id} from backend: ${(error as any).message}`);
+            throw new Error(`Failed to fetch booking ${id} from backend: ${error.message}`);
         }
-
         // 2. Fetch Parameters (could be cached or fetched separately)
         // For simplicity, we hardcode labels or fetch them from a common param endpoint.
         const parameterLabels = {
@@ -70,10 +52,9 @@ export const contractConfig: DocumentConfig<ContractData> = {
                 FIXED: 'Forfaitaire',
             },
         };
-
         // 3. Prepare Translation Function (Mocked for now or use library)
-        const t = (key: string) => {
-            const map: Record<string, string> = {
+        const t = (key) => {
+            const map = {
                 'providerRequests.contractTitle': 'CONTRAT DE LOCATION',
                 'providerRequests.invoiceTitle': 'FACTURE',
                 'providerRequests.reference': 'Réf',
@@ -98,47 +79,33 @@ export const contractConfig: DocumentConfig<ContractData> = {
             };
             return map[key] || key;
         };
-
         // 4. Fetch Offer Snapshot if available
         let offerSnapshot;
         if (booking.offerSnapshotId) {
             try {
-                const snapshotResponse = await axios.get(`${BACKEND_API_URL}/providers/snapshots/${booking.offerSnapshotId}`, {
+                const snapshotResponse = await axios_1.default.get(`${BACKEND_API_URL}/providers/snapshots/${booking.offerSnapshotId}`, {
                     headers: authHeader
                 });
                 offerSnapshot = snapshotResponse.data.data || snapshotResponse.data;
-            } catch (error) {
+            }
+            catch (error) {
                 console.warn('[PDF Service] Offer Snapshot Fetch Error:', error);
             }
         }
-
         // 5. Calculate Derived Values
         const startDateObj = new Date(booking.startDate);
         const endDateObj = new Date(booking.endDate);
         const rentalDays = Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-
-        const basePrice = (booking.resources || []).reduce((sum: number, r: any) =>
-            sum + (Number(r.dailyRate) || 0) * (Number(r.quantity) || 0) * rentalDays, 0);
-
-        const paidEquipments = (booking.equipmentSupplements || []).filter(
-            (s: any) => !s.isIncluded && (booking.selectedEquipment || []).includes(s.code) && s.priceModifier != null
-        );
-        const paidOptions = (booking.optionSupplements || []).filter(
-            (s: any) => !s.isIncluded && (booking.selectedOptions || []).includes(s.code) && s.priceModifier != null
-        );
-
-        const calcOptionAmount = (modifier: number, periodicity?: string) =>
-            periodicity === 'PER_DAY' ? modifier * rentalDays : modifier;
-
-        const optionsTotal =
-            paidEquipments.reduce((s: number, i: any) => s + calcOptionAmount(Number(i.priceModifier) || 0, i.periodicity), 0) +
-            paidOptions.reduce((s: number, i: any) => s + calcOptionAmount(Number(i.priceModifier) || 0, i.periodicity), 0);
-
+        const basePrice = (booking.resources || []).reduce((sum, r) => sum + (Number(r.dailyRate) || 0) * (Number(r.quantity) || 0) * rentalDays, 0);
+        const paidEquipments = (booking.equipmentSupplements || []).filter((s) => !s.isIncluded && (booking.selectedEquipment || []).includes(s.code) && s.priceModifier != null);
+        const paidOptions = (booking.optionSupplements || []).filter((s) => !s.isIncluded && (booking.selectedOptions || []).includes(s.code) && s.priceModifier != null);
+        const calcOptionAmount = (modifier, periodicity) => periodicity === 'PER_DAY' ? modifier * rentalDays : modifier;
+        const optionsTotal = paidEquipments.reduce((s, i) => s + calcOptionAmount(Number(i.priceModifier) || 0, i.periodicity), 0) +
+            paidOptions.reduce((s, i) => s + calcOptionAmount(Number(i.priceModifier) || 0, i.periodicity), 0);
         const total = Number(booking.totalPrice) || 0;
         const discount = (booking.discount != null && Number(booking.discount) > 0)
             ? Number(booking.discount)
             : Math.max(0, (basePrice + optionsTotal) - total);
-
         return {
             booking,
             offerSnapshot,
@@ -155,6 +122,6 @@ export const contractConfig: DocumentConfig<ContractData> = {
             numberLocale: 'fr-FR',
             parameterLabels,
             t
-        } as ContractData;
+        };
     }
 };

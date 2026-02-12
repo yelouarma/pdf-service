@@ -1,5 +1,16 @@
 // Simplified types for PDF generation server-side
 
+export interface ParameterReference {
+    domain: string;
+    functionalId: string;
+    localizedLabel?: string;
+    localizedDescription?: string;
+    /** Label per language (e.g. "fr" -> "Rayure", "en" -> "Scratch") for PDF to choose by requested language. */
+    labelsByLanguage?: Record<string, string>;
+    /** Description per language for PDF to choose by requested language. */
+    descriptionsByLanguage?: Record<string, string>;
+}
+
 export interface Address {
     street: string;
     additionalInfo?: string;
@@ -15,11 +26,46 @@ export interface ContactInfo {
     email?: string;
 }
 
+export interface Organization {
+    id: string;
+    name: string;
+    /** Contact email de l'organisation (pour documents, distinct du représentant légal). */
+    contactEmail?: string;
+    /** Contact téléphone de l'organisation (pour documents, distinct du représentant légal). */
+    contactPhone?: string;
+    legalPersonTypeKey?: string;
+    // Physical
+    physicalFirstName?: string;
+    physicalLastName?: string;
+    physicalDateOfBirth?: string;
+    physicalResidencePlace?: string;
+    physicalIdentityNumber?: string;
+    physicalPhone?: string;
+    physicalEmail?: string;
+    // Moral
+    moralLegalFormKey?: string;
+    moralHeadquarters?: string;
+    moralIce?: string;
+    moralRc?: string;
+    moralTaxId?: string;
+    moralPatent?: string;
+
+    address?: Address;
+    contactInfo?: ContactInfo;
+    legalRepresentative?: {
+        firstName?: string;
+        lastName?: string;
+        phone?: string;
+        email?: string;
+    };
+}
+
 export interface FleetResource {
     type: string;
     quantity: number;
     dailyRate: number;
     resourceName?: string;
+    typeRef?: ParameterReference;
 }
 
 export interface FleetBookingOptionSupplement {
@@ -29,6 +75,7 @@ export interface FleetBookingOptionSupplement {
     priceModifierType?: string;
     periodicity?: string;
     isIncluded?: boolean;
+    codeRef?: ParameterReference;
 }
 
 export interface FleetBookingEquipmentSupplement {
@@ -38,6 +85,7 @@ export interface FleetBookingEquipmentSupplement {
     priceModifierType?: string;
     periodicity?: string;
     isIncluded?: boolean;
+    codeRef?: ParameterReference;
 }
 
 export interface FleetResourceAssignment {
@@ -48,6 +96,47 @@ export interface FleetResourceAssignment {
     startDate: string;
     endDate: string;
     status: string;
+    statusRef?: ParameterReference;
+    vehicleType?: string;
+}
+
+export interface SnapshotPreferentialPrice {
+    id?: string;
+    price?: { type?: string; basePrice?: number; currency?: string };
+    priority?: number;
+    isActive?: boolean;
+}
+
+export interface SnapshotDiscountRule {
+    id?: string;
+    percentage?: number;
+    priority?: number;
+    isActive?: boolean;
+}
+
+export interface SnapshotOfferItem {
+    id?: string;
+    name?: string;
+    vehicleType?: string;
+    vehicleTier?: string;
+    rentalType?: string;
+    basePrice?: number;
+    pricePerDay?: number;
+    pricePerHour?: number;
+    pricePerKm?: number;
+    includedKm?: number;
+    options?: { code: string; name?: string; priceModifier?: number; periodicity?: string; isIncluded?: boolean; codeRef?: ParameterReference }[];
+    equipments?: { code: string; name?: string; priceModifier?: number; periodicity?: string; isIncluded?: boolean; codeRef?: ParameterReference }[];
+    securityDeposit?: number;
+    franchise?: { percentage?: number; minAmount?: number; conditions?: string };
+    preferentialPrices?: SnapshotPreferentialPrice[];
+    discounts?: SnapshotDiscountRule[];
+    penalties?: PenaltyRule[];
+}
+
+export interface OfferSnapshot {
+    id: string;
+    offers: SnapshotOfferItem[];
 }
 
 export interface PenaltyRule {
@@ -55,6 +144,8 @@ export interface PenaltyRule {
     amount?: number;
     basis?: string;
     conditions?: string;
+    typeRef?: ParameterReference;
+    basisRef?: ParameterReference;
 }
 
 export interface FleetBooking {
@@ -81,6 +172,39 @@ export interface FleetBooking {
         conditions?: string;
     };
     penalties?: PenaltyRule[];
-    provider?: any;
-    client?: any;
+    provider?: Organization;
+    client?: Organization;
+    offerSnapshotId?: string;
+}
+
+export interface HandoverDamage {
+    id?: string;
+    zoneId: string;
+    description: string;
+    damageType: string;
+    severity?: 'LOW' | 'MEDIUM' | 'HIGH';
+    photoId?: string;
+    photoIds?: string[];
+    damageTypeRef?: ParameterReference;
+}
+
+export interface HandoverSchema {
+    viewBox: string;
+    zones: { id: string; path: string }[];
+}
+
+export interface VehicleHandoverResponse {
+    id: string;
+    bookingId: string;
+    vehicleId?: string;
+    type: 'DELIVERY' | 'RETURN';
+    status: 'DRAFT' | 'ACCEPTED';
+    date: string;
+    odometerValue: number;
+    fuelLevel: string;
+    comments?: string;
+    signatureImageId?: string;
+    damages?: HandoverDamage[];
+    schema?: HandoverSchema;
+    createdAt: string;
 }

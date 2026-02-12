@@ -2,7 +2,7 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { ParameterPdfText } from './ParameterPdfText';
 import { format } from 'date-fns';
-import type { FleetBooking, FleetBookingOptionSupplement, FleetBookingEquipmentSupplement } from './types';
+import type { FleetBooking, FleetBookingOptionSupplement, FleetBookingEquipmentSupplement, Organization, OfferSnapshot } from './types';
 
 const styles = StyleSheet.create({
     page: {
@@ -105,6 +105,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#e2e8f0',
         fontWeight: 'bold',
+        pageBreakInside: 'avoid' as any,
     },
     tableRow: {
         flexDirection: 'row',
@@ -112,6 +113,7 @@ const styles = StyleSheet.create({
         borderBottomColor: '#f1f5f9',
         minHeight: 20,
         alignItems: 'center',
+        pageBreakInside: 'avoid' as any,
     },
     tableCol: {
         flex: 1,
@@ -160,6 +162,7 @@ const styles = StyleSheet.create({
 
 interface ContractPdfProps {
     booking: FleetBooking;
+    offerSnapshot?: OfferSnapshot;
     rentalDays: number;
     basePrice: number;
     optionsTotal: number;
@@ -189,6 +192,7 @@ const LabelValue = ({ label, value, dotted = false }: { label: string; value?: R
 
 export const BookingContractPdf = ({
     booking,
+    offerSnapshot,
     rentalDays,
     basePrice,
     optionsTotal,
@@ -203,8 +207,8 @@ export const BookingContractPdf = ({
     type = 'CONTRACT'
 }: ContractPdfProps) => {
     const reference = booking.entityReference || booking.id;
-    const client = booking.client || {};
-    const provider = booking.provider || {};
+    const client = (booking.client || {}) as Organization;
+    const provider = (booking.provider || {}) as Organization;
     const mainResource = booking.resources?.[0];
 
     // Assignments
@@ -245,57 +249,123 @@ export const BookingContractPdf = ({
                 <View style={styles.column}>
                     <Text style={styles.sectionHeader}>{t('providerRequests.contractTemplate.providerSection')}</Text>
                     <LabelValue label="Société" value={provider.name || '—'} />
-                    <LabelValue label="Email" value={provider.physicalEmail || provider.contactInfo?.email} />
-                    <LabelValue label="Téléphone" value={provider.physicalPhone || provider.contactInfo?.phone} />
-                    <LabelValue label="Adresse" value={provider.address?.street || provider.physicalResidencePlace} />
+                    {provider.moralIce && <LabelValue label="ICE" value={provider.moralIce} />}
+                    {provider.moralRc && <LabelValue label="RC" value={provider.moralRc} />}
+                    {provider.moralTaxId && <LabelValue label="I.F" value={provider.moralTaxId} />}
+                    {provider.moralPatent && <LabelValue label="Patente" value={provider.moralPatent} />}
+                    <LabelValue label="Email" value={provider.contactEmail || provider.physicalEmail || provider.legalRepresentative?.email || provider.contactInfo?.email} />
+                    <LabelValue label="Téléphone" value={provider.contactPhone || provider.physicalPhone || provider.legalRepresentative?.phone || provider.contactInfo?.phone} />
+                    <LabelValue label="Adresse" value={provider.address?.street || (provider.legalPersonTypeKey === 'MORAL' ? provider.moralHeadquarters : null) || provider.physicalResidencePlace} />
                     <LabelValue label="Ville" value={provider.address?.city || provider.physicalResidencePlace} />
                 </View>
                 <View style={styles.column}>
                     <Text style={styles.sectionHeader}>{t('providerRequests.contractTemplate.clientSection')}</Text>
                     <LabelValue label="Nom/Raison" value={client.legalPersonTypeKey === 'PHYSICAL' ? `${client.physicalFirstName} ${client.physicalLastName}` : client.name} />
-                    <LabelValue label="Email" value={client.physicalEmail || client.contactInfo?.email} />
-                    <LabelValue label="Téléphone" value={client.physicalPhone || client.contactInfo?.phone} />
-                    <LabelValue label="Adresse" value={client.address?.street || client.physicalResidencePlace} />
+                    {client.legalPersonTypeKey !== 'PHYSICAL' && (
+                        <>
+                            {client.moralIce && <LabelValue label="ICE" value={client.moralIce} />}
+                            {client.moralRc && <LabelValue label="RC" value={client.moralRc} />}
+                            {client.moralTaxId && <LabelValue label="I.F" value={client.moralTaxId} />}
+                            {client.moralPatent && <LabelValue label="Patente" value={client.moralPatent} />}
+                        </>
+                    )}
+                    <LabelValue label="Email" value={client.contactEmail || client.physicalEmail || client.legalRepresentative?.email || client.contactInfo?.email} />
+                    <LabelValue label="Téléphone" value={client.contactPhone || client.physicalPhone || client.legalRepresentative?.phone || client.contactInfo?.phone} />
+                    <LabelValue label="Adresse" value={client.address?.street || (client.legalPersonTypeKey === 'MORAL' ? client.moralHeadquarters : null) || client.physicalResidencePlace} />
                     <LabelValue label="Ville" value={client.address?.city || client.physicalResidencePlace} />
                 </View>
             </View>
-
-            {/* Détails Offre */}
+            {/* Détails Offres */}
             <View style={styles.section}>
                 <Text style={styles.sectionHeader}>{t('providerRequests.contractTemplate.offerSection')}</Text>
-                <View style={styles.grid}>
-                    <View style={styles.column}>
-                        <LabelValue label="Période" value={`${formatDate(booking.startDate)} au ${formatDate(booking.endDate)}`} />
-                        <LabelValue label="Durée" value={`${rentalDays} ${rentalDays === 1 ? t('common.day') : t('common.days')}`} />
-                        <LabelValue label="KM Inclus" value={booking.includedKm ? `${booking.includedKm} KM` : 'Illimité'} />
-                    </View>
-                    <View style={styles.column}>
-                        <LabelValue label="Tarif de base" value={formatPrice(basePrice)} />
-                        <LabelValue label="Caution" value={formatPrice(booking.securityDeposit || 0)} />
-                        <LabelValue
-                            label="Franchise"
-                            value={booking.franchise ? `${booking.franchise.percentage || 0}% (min. ${formatPrice(booking.franchise.minAmount || 0)})` : '—'}
-                        />
-                    </View>
-                </View>
+                {(offerSnapshot?.offers || booking.resources || []).map((item: any, idx) => {
+                    const isSnapshot = !!item.vehicleType;
+                    const type = isSnapshot ? item.vehicleType : item.type;
+                    const qty = isSnapshot ? 1 : item.quantity;
+                    const price = isSnapshot ? (item.pricePerDay || item.basePrice || 0) : item.dailyRate;
+                    const franchise = item.franchise || booking.franchise;
+                    const securityDeposit = item.securityDeposit != null ? item.securityDeposit : booking.securityDeposit;
+                    const includedKm = item.includedKm != null ? item.includedKm : booking.includedKm;
+
+                    return (
+                        <View key={idx} style={{ marginBottom: idx < (offerSnapshot?.offers?.length || booking.resources?.length || 0) - 1 ? 10 : 0 }}>
+                            <View style={[styles.row, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 2, marginBottom: 5 }]}>
+                                <Text style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{item.name || `Offre #${idx + 1}`} ({qty} véhicule{qty > 1 ? 's' : ''})</Text>
+                            </View>
+                            <View style={styles.grid}>
+                                <View style={styles.column}>
+                                    <LabelValue label="Période" value={`${formatDate(booking.startDate)} au ${formatDate(booking.endDate)}`} />
+                                    <LabelValue
+                                        label="Type Véhicule"
+                                        value={<ParameterPdfText domain="VEHICLE_TYPES" value={type} parameterReference={isSnapshot ? item.typeRef : item.typeRef} labels={parameterLabels?.VEHICLE_TYPES} />}
+                                    />
+                                    <LabelValue label="KM Inclus" value={includedKm != null ? `${includedKm} KM` : 'Illimité'} />
+                                </View>
+                                <View style={styles.column}>
+                                    <LabelValue label="Tarif de base" value={formatPrice(Number(price))} />
+                                    <LabelValue label="Caution" value={formatPrice(Number(securityDeposit || 0))} />
+                                    <LabelValue
+                                        label="Franchise"
+                                        value={franchise ? `${franchise.percentage || 0}% (min. ${formatPrice(franchise.minAmount || 0)})` : '—'}
+                                    />
+                                </View>
+                            </View>
+                            {/* Included items for this specific offer */}
+                            {isSnapshot && (item.equipments?.some((e: any) => e.isIncluded) || item.options?.some((o: any) => o.isIncluded)) && (
+                                <View style={{ marginTop: 5, paddingLeft: 5 }}>
+                                    <Text style={{ fontSize: 7, color: '#64748b', marginBottom: 2 }}>Inclus :</Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                        {item.equipments?.filter((e: any) => e.isIncluded).map((e: any) => (
+                                            <Text key={e.code} style={{ fontSize: 7, backgroundColor: '#f8fafc', padding: '1 3', borderRadius: 2, borderWidth: 0.5, borderColor: '#e2e8f0' }}>
+                                                <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} parameterReference={e.codeRef} labels={parameterLabels?.VEHICLE_FEATURES} />
+                                            </Text>
+                                        ))}
+                                        {item.options?.filter((o: any) => o.isIncluded).map((o: any) => (
+                                            <Text key={o.code} style={{ fontSize: 7, backgroundColor: '#f8fafc', padding: '1 3', borderRadius: 2, borderWidth: 0.5, borderColor: '#e2e8f0' }}>
+                                                <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} parameterReference={o.codeRef} labels={parameterLabels?.VEHICLE_SERVICES} />
+                                            </Text>
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+                    );
+                })}
             </View>
 
             {/* Affectation & Resources */}
             <View style={styles.section}>
                 <Text style={styles.sectionHeader}>{t('providerRequests.contractTemplate.assignmentSection')}</Text>
-                <View style={styles.grid}>
-                    <View style={styles.column}>
-                        <LabelValue label={t('providerRequests.contractTemplate.vehicleAssigned')} value={vehicleAssigned?.resourceName || '—'} dotted />
-                        <LabelValue label={t('providerRequests.contractTemplate.driverAssigned')} value={driverAssigned?.resourceName || '—'} dotted />
+                {booking.assignments && booking.assignments.length > 0 ? (
+                    <View style={styles.table}>
+                        <View style={styles.tableHeaderRow}>
+                            <Text style={[styles.tableCol, { textAlign: 'left', flex: 2 }]}>Ressource</Text>
+                            <Text style={styles.tableCol}>Type</Text>
+                            <Text style={[styles.tableCol, { flex: 2 }]}>Période</Text>
+                            <Text style={styles.tableCol}>Km Départ</Text>
+                        </View>
+                        {booking.assignments.map((a, i) => (
+                            <View key={i} style={styles.tableRow}>
+                                <Text style={[styles.tableCol, { textAlign: 'left', flex: 2 }]}>{a.resourceName || a.resourceId}</Text>
+                                <Text style={styles.tableCol}>{a.resourceType}</Text>
+                                <View style={[styles.tableCol, { fontSize: 8 }]}>
+                                    <ParameterPdfText domain="RESOURCE_ASSIGNMENT_STATUS" value={a.status} parameterReference={a.statusRef} labels={parameterLabels?.RESOURCE_ASSIGNMENT_STATUS} />
+                                </View>
+                                <Text style={[styles.tableCol, { flex: 2, fontSize: 8 }]}>{formatDate(a.startDate)} - {formatDate(a.endDate)}</Text>
+                            </View>
+                        ))}
                     </View>
-                    <View style={styles.column}>
-                        <LabelValue label={t('providerRequests.contractTemplate.startMileage')} value="" dotted />
-                        <LabelValue
-                            label="Type Véhicule"
-                            value={<ParameterPdfText domain="VEHICLE_TYPES" value={mainResource?.type} labels={parameterLabels?.VEHICLE_TYPES} />}
-                        />
+                ) : (
+                    <View style={styles.grid}>
+                        <View style={styles.column}>
+                            <LabelValue label={t('providerRequests.contractTemplate.vehicleAssigned')} value="—" dotted />
+                            <LabelValue label={t('providerRequests.contractTemplate.driverAssigned')} value="—" dotted />
+                        </View>
+                        <View style={styles.column}>
+                            <LabelValue label={t('providerRequests.contractTemplate.startMileage')} value="" dotted />
+                        </View>
                     </View>
-                </View>
+                )}
             </View>
 
             {/* Equipments */}
@@ -305,13 +375,13 @@ export const BookingContractPdf = ({
                     {booking.equipmentSupplements?.filter(e => e.isIncluded).map(e => (
                         <View key={e.code} style={styles.equipmentItem}>
                             <View style={styles.bullet} />
-                            <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} fallback={e.name} />
+                            <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} parameterReference={e.codeRef} fallback={e.name} />
                         </View>
                     ))}
                     {booking.optionSupplements?.filter(o => o.isIncluded).map(o => (
                         <View key={o.code} style={styles.equipmentItem}>
                             <View style={styles.bullet} />
-                            <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} fallback={o.name} />
+                            <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} parameterReference={o.codeRef} fallback={o.name} />
                         </View>
                     ))}
                 </View>
@@ -321,7 +391,7 @@ export const BookingContractPdf = ({
                         <View key={e.code} style={styles.equipmentItem}>
                             <View style={[styles.bullet, { backgroundColor: '#10b981' }]} />
                             <Text>
-                                <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} fallback={e.name} />
+                                <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} parameterReference={e.codeRef} fallback={e.name} />
                                 <Text> ({formatPrice(optionAmount(Number(e.priceModifier) || 0, e.periodicity))})</Text>
                             </Text>
                         </View>
@@ -330,7 +400,7 @@ export const BookingContractPdf = ({
                         <View key={o.code} style={styles.equipmentItem}>
                             <View style={[styles.bullet, { backgroundColor: '#10b981' }]} />
                             <Text>
-                                <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} fallback={o.name} />
+                                <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} parameterReference={o.codeRef} fallback={o.name} />
                                 <Text> ({formatPrice(optionAmount(Number(o.priceModifier) || 0, o.periodicity))})</Text>
                             </Text>
                         </View>
@@ -372,11 +442,10 @@ export const BookingContractPdf = ({
                         booking.penalties.map((p, i) => (
                             <View key={i} style={styles.tableRow}>
                                 <View style={[styles.tableCol, { flex: 2, textAlign: 'left' }]}>
-                                    <ParameterPdfText domain="VEHICLE_SERVICES" value={p.type} />
+                                    <ParameterPdfText domain="PENALTY_TYPES" value={p.type} parameterReference={p.typeRef} labels={parameterLabels?.PENALTY_TYPES} />
                                 </View>
-                                <View style={styles.tableCol}>
-                                    <Text>{p.amount} </Text>
-                                    <ParameterPdfText domain="PENALTY_BASIS" value={p.basis} />
+                                <View style={[styles.tableCol, { flexWrap: 'nowrap' }]}>
+                                    <Text>{p.amount != null ? `${p.amount} ` : ''}<ParameterPdfText domain="PENALTY_BASIS" value={p.basis} parameterReference={p.basisRef} labels={parameterLabels?.PENALTY_BASIS} /></Text>
                                 </View>
                                 <Text style={[styles.tableCol, { flex: 3, textAlign: 'left', fontSize: 7 }]}>{p.conditions}</Text>
                             </View>
@@ -429,18 +498,20 @@ export const BookingContractPdf = ({
                 <View style={styles.column}>
                     <Text style={styles.sectionHeader}>{t('providerRequests.providerDetails')}</Text>
                     <Text style={{ fontWeight: 'bold' }}>{provider.name || '—'}</Text>
-                    <Text>{provider.physicalEmail || provider.contactInfo?.email}</Text>
-                    <Text>{provider.physicalPhone || provider.contactInfo?.phone}</Text>
-                    <Text>{provider.address?.street || provider.physicalResidencePlace}</Text>
-                    <Text>{provider.address?.postalCode} {provider.address?.city}</Text>
+                    {provider.moralIce && <Text>ICE: {provider.moralIce}</Text>}
+                    <Text>{provider.contactEmail || provider.physicalEmail || provider.legalRepresentative?.email || provider.contactInfo?.email || '—'}</Text>
+                    <Text>{provider.contactPhone || provider.physicalPhone || provider.legalRepresentative?.phone || provider.contactInfo?.phone || '—'}</Text>
+                    <Text>{provider.address?.street || (provider.legalPersonTypeKey === 'MORAL' ? provider.moralHeadquarters : null) || provider.physicalResidencePlace || '—'}</Text>
+                    <Text>{provider.address?.postalCode} {provider.address?.city || '—'}</Text>
                 </View>
                 <View style={styles.column}>
                     <Text style={styles.sectionHeader}>{t('providerRequests.clientDetails')}</Text>
                     <Text style={{ fontWeight: 'bold' }}>{client.legalPersonTypeKey === 'PHYSICAL' ? `${client.physicalFirstName} ${client.physicalLastName}` : client.name}</Text>
-                    <Text>{client.physicalEmail || client.contactInfo?.email}</Text>
-                    <Text>{client.physicalPhone || client.contactInfo?.phone}</Text>
-                    <Text>{client.address?.street || client.physicalResidencePlace}</Text>
-                    <Text>{client.address?.postalCode} {client.address?.city}</Text>
+                    {client.legalPersonTypeKey !== 'PHYSICAL' && client.moralIce && <Text>ICE: {client.moralIce}</Text>}
+                    <Text>{client.contactEmail || client.physicalEmail || client.legalRepresentative?.email || client.contactInfo?.email || '—'}</Text>
+                    <Text>{client.contactPhone || client.physicalPhone || client.legalRepresentative?.phone || client.contactInfo?.phone || '—'}</Text>
+                    <Text>{client.address?.street || (client.legalPersonTypeKey === 'MORAL' ? client.moralHeadquarters : null) || client.physicalResidencePlace || '—'}</Text>
+                    <Text>{client.address?.postalCode} {client.address?.city || '—'}</Text>
                 </View>
             </View>
 
@@ -451,16 +522,29 @@ export const BookingContractPdf = ({
                     <Text style={{ flex: 1, textAlign: 'right' }}>Montant HT</Text>
                 </View>
 
-                <View style={{ flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-                    <Text style={{ flex: 3 }}>{t('providerRequests.basePrice')} ({rentalDays}j)</Text>
-                    <Text style={{ flex: 1, textAlign: 'center' }}>1</Text>
-                    <Text style={{ flex: 1, textAlign: 'right' }}>{formatPrice(basePrice)}</Text>
-                </View>
+                {(offerSnapshot?.offers || booking.resources || []).map((item: any, idx) => {
+                    const isSnapshot = !!item.vehicleType;
+                    const type = isSnapshot ? item.vehicleType : item.type;
+                    const qty = isSnapshot ? 1 : item.quantity;
+                    const price = isSnapshot ? (item.pricePerDay || item.basePrice || 0) : item.dailyRate;
+                    const name = item.name || `Offre #${idx + 1}`;
+
+                    return (
+                        <View key={idx} style={{ flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                            <View style={{ flex: 3 }}>
+                                <Text style={{ fontWeight: 'bold' }}>{name} ({rentalDays}j)</Text>
+                                <ParameterPdfText domain="VEHICLE_TYPES" value={type} parameterReference={isSnapshot ? item.typeRef : item.typeRef} labels={parameterLabels?.VEHICLE_TYPES} />
+                            </View>
+                            <Text style={{ flex: 1, textAlign: 'center' }}>{qty}</Text>
+                            <Text style={{ flex: 1, textAlign: 'right' }}>{formatPrice(Number(price) * qty * rentalDays)}</Text>
+                        </View>
+                    );
+                })}
 
                 {paidEquipments.map(e => (
                     <View key={e.code} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                         <View style={{ flex: 3 }}>
-                            <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} fallback={e.name} labels={parameterLabels?.VEHICLE_FEATURES} />
+                            <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} parameterReference={e.codeRef} fallback={e.name} labels={parameterLabels?.VEHICLE_FEATURES} />
                         </View>
                         <Text style={{ flex: 1, textAlign: 'center' }}>1</Text>
                         <Text style={{ flex: 1, textAlign: 'right' }}>{formatPrice(optionAmount(Number(e.priceModifier) || 0, e.periodicity))}</Text>
@@ -470,7 +554,7 @@ export const BookingContractPdf = ({
                 {paidOptions.map(o => (
                     <View key={o.code} style={{ flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                         <View style={{ flex: 3 }}>
-                            <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} fallback={o.name} labels={parameterLabels?.VEHICLE_SERVICES} />
+                            <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} parameterReference={o.codeRef} fallback={o.name} labels={parameterLabels?.VEHICLE_SERVICES} />
                         </View>
                         <Text style={{ flex: 1, textAlign: 'center' }}>1</Text>
                         <Text style={{ flex: 1, textAlign: 'right' }}>{formatPrice(optionAmount(Number(o.priceModifier) || 0, o.periodicity))}</Text>
