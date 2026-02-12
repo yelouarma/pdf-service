@@ -444,7 +444,7 @@ export const BookingContractPdf = ({
                                                     <ParameterPdfText domain="PENALTY_TYPES" value={p.type} parameterReference={p.typeRef} labels={parameterLabels?.PENALTY_TYPES} />
                                                 </View>
                                                 <Text style={[styles.tableCol, { fontSize: 7 }]}>
-                                                    {p.amount != null ? `${p.amount} ` : ''}
+                                                    {p.amount != null ? `${formatPrice(p.amount)} ` : ''}
                                                     <ParameterPdfText domain="PENALTY_BASIS" value={p.basis} parameterReference={p.basisRef} labels={parameterLabels?.PENALTY_BASIS} />
                                                 </Text>
                                                 <Text style={[styles.tableColLeft, { flex: 3, fontSize: 6.5, color: '#64748b' }]}>{p.conditions}</Text>
@@ -570,7 +570,7 @@ export const BookingContractPdf = ({
                                     <ParameterPdfText domain="PENALTY_TYPES" value={p.type} parameterReference={p.typeRef} labels={parameterLabels?.PENALTY_TYPES} />
                                 </View>
                                 <View style={[styles.tableCol, { flexWrap: 'nowrap' }]}>
-                                    <Text>{p.amount != null ? `${p.amount} ` : ''}<ParameterPdfText domain="PENALTY_BASIS" value={p.basis} parameterReference={p.basisRef} labels={parameterLabels?.PENALTY_BASIS} /></Text>
+                                    <Text>{p.amount != null ? `${formatPrice(p.amount)} ` : ''}<ParameterPdfText domain="PENALTY_BASIS" value={p.basis} parameterReference={p.basisRef} labels={parameterLabels?.PENALTY_BASIS} /></Text>
                                 </View>
                                 <Text style={[styles.tableCol, { flex: 3, textAlign: 'left', fontSize: 7 }]}>{p.conditions}</Text>
                             </View>
