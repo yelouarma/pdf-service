@@ -122,6 +122,57 @@ const styles = StyleSheet.create({
         borderRightWidth: 1,
         borderRightColor: '#f1f5f9',
     },
+    tableColLeft: {
+        flex: 1,
+        padding: 4,
+        textAlign: 'left',
+        borderRightWidth: 1,
+        borderRightColor: '#f1f5f9',
+    },
+    // Summary Box
+    summaryBox: {
+        backgroundColor: '#f8fafc',
+        padding: 10,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        marginTop: 10,
+    },
+    totalRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 2,
+    },
+    totalLabel: {
+        fontWeight: 'bold',
+        color: '#475569',
+    },
+    totalValue: {
+        fontWeight: 'bold',
+        color: '#1e3a8a',
+        fontSize: 11,
+    },
+    // Terms section
+    termsBox: {
+        marginTop: 15,
+        padding: 8,
+        backgroundColor: '#fffef3',
+        borderWidth: 1,
+        borderColor: '#fef08a',
+        borderRadius: 4,
+    },
+    termsTitle: {
+        fontSize: 9,
+        fontWeight: 'bold',
+        color: '#854d0e',
+        marginBottom: 4,
+        textTransform: 'uppercase',
+    },
+    termsText: {
+        fontSize: 7.5,
+        color: '#71717a',
+        textAlign: 'justify',
+    },
     // Signatures
     signatureGrid: {
         marginTop: 30,
@@ -281,49 +332,123 @@ export const BookingContractPdf = ({
                 {(offerSnapshot?.offers || booking.resources || []).map((item: any, idx) => {
                     const isSnapshot = !!item.vehicleType;
                     const type = isSnapshot ? item.vehicleType : item.type;
-                    const qty = isSnapshot ? 1 : item.quantity;
+
+                    // Try to find the quantity from booking.resources if we are looking at a snapshot offer
+                    let qty = 1;
+                    if (isSnapshot && booking.resources) {
+                        // Match by vehicle type or name if possible
+                        const matchingResource = booking.resources.find((r: any) =>
+                            r.type === item.vehicleType || r.resourceName === item.name
+                        );
+                        if (matchingResource) {
+                            qty = matchingResource.quantity;
+                        }
+                    } else if (!isSnapshot) {
+                        qty = item.quantity;
+                    }
+
                     const price = isSnapshot ? (item.pricePerDay || item.basePrice || 0) : item.dailyRate;
                     const franchise = item.franchise || booking.franchise;
                     const securityDeposit = item.securityDeposit != null ? item.securityDeposit : booking.securityDeposit;
                     const includedKm = item.includedKm != null ? item.includedKm : booking.includedKm;
 
                     return (
-                        <View key={idx} style={{ marginBottom: idx < (offerSnapshot?.offers?.length || booking.resources?.length || 0) - 1 ? 10 : 0 }}>
-                            <View style={[styles.row, { borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 2, marginBottom: 5 }]}>
-                                <Text style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{item.name || `Offre #${idx + 1}`} ({qty} véhicule{qty > 1 ? 's' : ''})</Text>
+                        <View key={idx} style={{
+                            marginBottom: idx < (offerSnapshot?.offers?.length || booking.resources?.length || 0) - 1 ? 15 : 0,
+                            borderBottomWidth: idx < (offerSnapshot?.offers?.length || booking.resources?.length || 0) - 1 ? 0.5 : 0,
+                            borderBottomColor: '#e2e8f0',
+                            paddingBottom: 10
+                        }}>
+                            <View style={[styles.row, { marginBottom: 8 }]}>
+                                <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1e3a8a' }}>
+                                    {item.name || `Offre #${idx + 1}`} - {qty} véhicule{qty > 1 ? 's' : ''}
+                                </Text>
                             </View>
+
                             <View style={styles.grid}>
                                 <View style={styles.column}>
                                     <LabelValue label="Période" value={`${formatDate(booking.startDate)} au ${formatDate(booking.endDate)}`} />
                                     <LabelValue
                                         label="Type Véhicule"
-                                        value={<ParameterPdfText domain="VEHICLE_TYPES" value={type} parameterReference={isSnapshot ? item.typeRef : item.typeRef} labels={parameterLabels?.VEHICLE_TYPES} />}
+                                        value={<ParameterPdfText domain="VEHICLE_TYPES" value={type} parameterReference={item.typeRef} labels={parameterLabels?.VEHICLE_TYPES} />}
                                     />
                                     <LabelValue label="KM Inclus" value={includedKm != null ? `${includedKm} KM` : 'Illimité'} />
                                 </View>
                                 <View style={styles.column}>
-                                    <LabelValue label="Tarif de base" value={formatPrice(Number(price))} />
-                                    <LabelValue label="Caution" value={formatPrice(Number(securityDeposit || 0))} />
+                                    <LabelValue label="Tarif Journalier" value={formatPrice(Number(price))} />
+                                    <LabelValue label="Caution (Dépôt)" value={formatPrice(Number(securityDeposit || 0))} />
                                     <LabelValue
                                         label="Franchise"
                                         value={franchise ? `${franchise.percentage || 0}% (min. ${formatPrice(franchise.minAmount || 0)})` : '—'}
                                     />
                                 </View>
                             </View>
-                            {/* Included items for this specific offer */}
-                            {isSnapshot && (item.equipments?.some((e: any) => e.isIncluded) || item.options?.some((o: any) => o.isIncluded)) && (
-                                <View style={{ marginTop: 5, paddingLeft: 5 }}>
-                                    <Text style={{ fontSize: 7, color: '#64748b', marginBottom: 2 }}>Inclus :</Text>
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                                        {item.equipments?.filter((e: any) => e.isIncluded).map((e: any) => (
-                                            <Text key={e.code} style={{ fontSize: 7, backgroundColor: '#f8fafc', padding: '1 3', borderRadius: 2, borderWidth: 0.5, borderColor: '#e2e8f0' }}>
-                                                <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} parameterReference={e.codeRef} labels={parameterLabels?.VEHICLE_FEATURES} />
-                                            </Text>
-                                        ))}
-                                        {item.options?.filter((o: any) => o.isIncluded).map((o: any) => (
-                                            <Text key={o.code} style={{ fontSize: 7, backgroundColor: '#f8fafc', padding: '1 3', borderRadius: 2, borderWidth: 0.5, borderColor: '#e2e8f0' }}>
-                                                <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} parameterReference={o.codeRef} labels={parameterLabels?.VEHICLE_SERVICES} />
-                                            </Text>
+
+                            {/* Services & Equipements Section for this offer */}
+                            <View style={{ marginTop: 8, flexDirection: 'row', gap: 20 }}>
+                                {/* Included Items */}
+                                {(item.equipments?.some((e: any) => e.isIncluded) || item.options?.some((o: any) => o.isIncluded)) && (
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#475569', marginBottom: 3 }}>Équipements & Services Inclus :</Text>
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                            {item.equipments?.filter((e: any) => e.isIncluded).map((e: any) => (
+                                                <Text key={e.code} style={{ fontSize: 7, backgroundColor: '#f0f9ff', color: '#0369a1', padding: '2 5', borderRadius: 3, borderWidth: 0.5, borderColor: '#bae6fd' }}>
+                                                    <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} parameterReference={e.codeRef} labels={parameterLabels?.VEHICLE_FEATURES} />
+                                                </Text>
+                                            ))}
+                                            {item.options?.filter((o: any) => o.isIncluded).map((o: any) => (
+                                                <Text key={o.code} style={{ fontSize: 7, backgroundColor: '#f0f9ff', color: '#0369a1', padding: '2 5', borderRadius: 3, borderWidth: 0.5, borderColor: '#bae6fd' }}>
+                                                    <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} parameterReference={o.codeRef} labels={parameterLabels?.VEHICLE_SERVICES} />
+                                                </Text>
+                                            ))}
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* Optional Items requested for this offer - if they are in the snapshot as available and selected in booking */}
+                                {(item.equipments?.some((e: any) => !e.isIncluded && (booking.selectedEquipment || []).includes(e.code)) ||
+                                    item.options?.some((o: any) => !o.isIncluded && (booking.selectedOptions || []).includes(o.code))) && (
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#475569', marginBottom: 3 }}>Options Supplémentaires Demandées :</Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                                {item.equipments?.filter((e: any) => !e.isIncluded && (booking.selectedEquipment || []).includes(e.code)).map((e: any) => (
+                                                    <Text key={e.code} style={{ fontSize: 7, backgroundColor: '#f0fdf4', color: '#15803d', padding: '2 5', borderRadius: 3, borderWidth: 0.5, borderColor: '#bbf7d0' }}>
+                                                        <ParameterPdfText domain="VEHICLE_FEATURES" value={e.code} parameterReference={e.codeRef} labels={parameterLabels?.VEHICLE_FEATURES} />
+                                                        {e.priceModifier ? ` (+${formatPrice(optionAmount(e.priceModifier, e.periodicity))})` : ''}
+                                                    </Text>
+                                                ))}
+                                                {item.options?.filter((o: any) => !o.isIncluded && (booking.selectedOptions || []).includes(o.code)).map((o: any) => (
+                                                    <Text key={o.code} style={{ fontSize: 7, backgroundColor: '#f0fdf4', color: '#15803d', padding: '2 5', borderRadius: 3, borderWidth: 0.5, borderColor: '#bbf7d0' }}>
+                                                        <ParameterPdfText domain="VEHICLE_SERVICES" value={o.code} parameterReference={o.codeRef} labels={parameterLabels?.VEHICLE_SERVICES} />
+                                                        {o.priceModifier ? ` (+${formatPrice(optionAmount(o.priceModifier, o.periodicity))})` : ''}
+                                                    </Text>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+                            </View>
+
+                            {/* Penalty Rules for this specific offer */}
+                            {item.penalties && item.penalties.length > 0 && (
+                                <View style={{ marginTop: 8 }}>
+                                    <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#475569', marginBottom: 3 }}>Pénalités Spécifiques à cette Offre :</Text>
+                                    <View style={[styles.table, { marginTop: 0 }]}>
+                                        <View style={[styles.tableHeaderRow, { backgroundColor: '#fff7ed', borderBottomColor: '#ffedd5' }]}>
+                                            <Text style={[styles.tableColLeft, { flex: 2, fontSize: 7 }]}>Manquement</Text>
+                                            <Text style={[styles.tableCol, { fontSize: 7 }]}>Montant</Text>
+                                            <Text style={[styles.tableColLeft, { flex: 3, fontSize: 7 }]}>Conditions</Text>
+                                        </View>
+                                        {item.penalties.map((p: any, pIdx: number) => (
+                                            <View key={pIdx} style={[styles.tableRow, { minHeight: 15 }]}>
+                                                <View style={[styles.tableColLeft, { flex: 2, fontSize: 7 }]}>
+                                                    <ParameterPdfText domain="PENALTY_TYPES" value={p.type} parameterReference={p.typeRef} labels={parameterLabels?.PENALTY_TYPES} />
+                                                </View>
+                                                <Text style={[styles.tableCol, { fontSize: 7 }]}>
+                                                    {p.amount != null ? `${p.amount} ` : ''}
+                                                    <ParameterPdfText domain="PENALTY_BASIS" value={p.basis} parameterReference={p.basisRef} labels={parameterLabels?.PENALTY_BASIS} />
+                                                </Text>
+                                                <Text style={[styles.tableColLeft, { flex: 3, fontSize: 6.5, color: '#64748b' }]}>{p.conditions}</Text>
+                                            </View>
                                         ))}
                                     </View>
                                 </View>
@@ -465,6 +590,40 @@ export const BookingContractPdf = ({
                 )}
             </View>
 
+            {/* Récapitulatif Financier */}
+            <View style={styles.summaryBox}>
+                <Text style={[styles.termsTitle, { color: '#1e3a8a', marginBottom: 8 }]}>Récapitulatif de la Réservation</Text>
+                <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Total Location (Véhicules) :</Text>
+                    <Text style={styles.totalValue}>{formatPrice(basePrice)}</Text>
+                </View>
+                <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Total Options & Services :</Text>
+                    <Text style={styles.totalValue}>{formatPrice(optionsTotal)}</Text>
+                </View>
+                {discount > 0 && (
+                    <View style={styles.totalRow}>
+                        <Text style={[styles.totalLabel, { color: '#10b981' }]}>Remise Appliquée :</Text>
+                        <Text style={[styles.totalValue, { color: '#10b981' }]}>-{formatPrice(discount)}</Text>
+                    </View>
+                )}
+                <View style={[styles.totalRow, { borderTopWidth: 1, borderTopColor: '#cbd5e1', marginTop: 5, paddingTop: 5 }]}>
+                    <Text style={[styles.totalLabel, { fontSize: 12, color: '#1e3a8a' }]}>TOTAL NET À PAYER (TTC) :</Text>
+                    <Text style={[styles.totalValue, { fontSize: 14, color: '#2563eb' }]}>{formatPrice(total)}</Text>
+                </View>
+            </View>
+
+            {/* Terms section for Dispute Resolution */}
+            <View style={styles.termsBox}>
+                <Text style={styles.termsTitle}>Conditions & Résolution des Litiges</Text>
+                <Text style={styles.termsText}>
+                    1. Le présent document constitue la preuve contractuelle des services réservés et des tarifs acceptés. En cas de litige, les détails listés ci-dessus (véhicules, équipements inclus, options demandées et pénalités) feront foi.
+                    {"\n"}2. Le locataire s'engage à restituer les véhicules dans l'état constaté au départ. Toute dégradation non signalée pourra entraîner l'application des pénalités définies.
+                    {"\n"}3. La franchise et la caution sont débitées ou pré-autorisées selon les conditions spécifiques de chaque offre. En cas d'accident responsable, le montant de la franchise sera dû.
+                    {"\n"}4. Tout retard de restitution entraînera les pénalités prévues au contrat.
+                </Text>
+            </View>
+
             {/* Signatures */}
             <View style={styles.signatureGrid}>
                 <View style={{ flex: 1 }}>
@@ -525,7 +684,19 @@ export const BookingContractPdf = ({
                 {(offerSnapshot?.offers || booking.resources || []).map((item: any, idx) => {
                     const isSnapshot = !!item.vehicleType;
                     const type = isSnapshot ? item.vehicleType : item.type;
-                    const qty = isSnapshot ? 1 : item.quantity;
+
+                    let qty = 1;
+                    if (isSnapshot && booking.resources) {
+                        const matchingResource = booking.resources.find((r: any) =>
+                            r.type === item.vehicleType || r.resourceName === item.name
+                        );
+                        if (matchingResource) {
+                            qty = matchingResource.quantity;
+                        }
+                    } else if (!isSnapshot) {
+                        qty = item.quantity;
+                    }
+
                     const price = isSnapshot ? (item.pricePerDay || item.basePrice || 0) : item.dailyRate;
                     const name = item.name || `Offre #${idx + 1}`;
 
@@ -533,7 +704,7 @@ export const BookingContractPdf = ({
                         <View key={idx} style={{ flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                             <View style={{ flex: 3 }}>
                                 <Text style={{ fontWeight: 'bold' }}>{name} ({rentalDays}j)</Text>
-                                <ParameterPdfText domain="VEHICLE_TYPES" value={type} parameterReference={isSnapshot ? item.typeRef : item.typeRef} labels={parameterLabels?.VEHICLE_TYPES} />
+                                <ParameterPdfText domain="VEHICLE_TYPES" value={type} parameterReference={item.typeRef} labels={parameterLabels?.VEHICLE_TYPES} />
                             </View>
                             <Text style={{ flex: 1, textAlign: 'center' }}>{qty}</Text>
                             <Text style={{ flex: 1, textAlign: 'right' }}>{formatPrice(Number(price) * qty * rentalDays)}</Text>
