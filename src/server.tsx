@@ -64,7 +64,13 @@ app.get('/generate', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`🖨️ PDF Service running on http://localhost:${PORT}`);
-    console.log(`   - Connected to Backend: ${process.env.BACKEND_API_URL || 'http://localhost:8080/api/v1'}`);
-});
+// Export the app for Vercel
+export default app;
+
+// Only start the server if this file is run directly (not imported)
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`🖨️ PDF Service running on http://localhost:${PORT}`);
+        console.log(`   - Connected to Backend: ${process.env.BACKEND_API_URL || 'http://localhost:8080/api/v1'}`);
+    });
+}
