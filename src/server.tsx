@@ -1,8 +1,23 @@
 import express from 'express';
 import cors from 'cors';
 import React from 'react';
-import ReactPDF from '@react-pdf/renderer';
+import path from 'path';
+import ReactPDF, { Font } from '@react-pdf/renderer';
 import { getDocumentConfig } from './registry';
+
+// Resolve paths to fonts - relative to the CWD when running the service
+// In dev (ts-node-dev), process.cwd() is project root.
+// In prod (node dist/server.js), it might be different, but assets should be copied.
+const FONT_DIR = path.join(process.cwd(), 'assets', 'fonts');
+
+// Register fonts for Arabic support
+Font.register({
+    family: 'NotoSans',
+    fonts: [
+        { src: path.join(FONT_DIR, 'NotoSans-Regular.ttf') },
+        { src: path.join(FONT_DIR, 'NotoSans-Bold.ttf'), fontWeight: 'bold' }
+    ]
+});
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -37,7 +52,7 @@ app.get('/generate', async (req, res) => {
 
         // 2. Fetch Data using the configuration
         // We pass the auth token and language so the fetcher/template can use the right locale for labels
-        const data = await config.fetchData(bookingId as string, { token, type, language });
+        const data = await config.fetchData(bookingId as string, { token, type, language, ...req.query });
 
         // 3. Render PDF
         // Dynamically instantiate the template component from config

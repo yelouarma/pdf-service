@@ -208,3 +208,44 @@ export interface VehicleHandoverResponse {
     schema?: HandoverSchema;
     createdAt: string;
 }
+
+export type ShipmentStatus = 'PENDING' | 'MATCHING' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED';
+export type ShipmentLegStatus = 'PENDING' | 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type VehicleType = 'TRUCK' | 'VAN' | 'TRAILER' | 'REFRIGERATED' | 'FLATBED' | 'TANKER';
+export type CargoType = 'GENERAL' | 'FRAGILE' | 'HAZARDOUS' | 'PERISHABLE' | 'BULK';
+export type TourType = 'PICKUP' | 'LONG_HAUL' | 'LAST_MILE' | 'DIRECT';
+
+export interface ShipmentLeg {
+    id: string;
+    sequenceOrder: number;
+    type: TourType;
+    fromHubId?: string;
+    toHubId?: string;
+    status: ShipmentLegStatus;
+    assignedTourId?: string;
+    estimatedStartTime?: string;
+    estimatedEndTime?: string;
+    actualStartTime?: string;
+    actualEndTime?: string;
+}
+
+export interface Shipment {
+    id: string;
+    entityReference?: string;
+    trackingNumber?: string;
+    origin: Address;
+    destination: Address;
+    vehicleType: VehicleType;
+    weight?: number;
+    status: ShipmentStatus;
+    estimatedPrice?: number;
+    selectedDeliveryServiceId?: string;
+    selectedProviderId?: string;
+    itinerary?: ShipmentLeg[];
+    createdAt: string;
+    updatedAt: string;
+    userRating?: number;
+    userComment?: string;
+    provider?: Organization;
+    client?: Organization;
+}
