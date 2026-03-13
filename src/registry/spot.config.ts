@@ -11,21 +11,26 @@ interface SpotData {
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8080/api/v1';
 
+/** Prepare spot data from pre-fetched body */
+function prepareSpotData(body: Record<string, any>, lang: string): SpotData {
+    const { shipment } = body;
+    const t = (key: string) => key; // Labels come from backend
+    return { shipment, t };
+}
+
+/** @deprecated — fetch from backend API (used by GET /generate) */
 const fetchShipmentData = async (id: string, token?: string): Promise<SpotData> => {
-    // Ensure token is passed in the header
-    const authHeader = token ? { 
-        Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}` 
+    const authHeader = token ? {
+        Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}`
     } : {};
     let shipment: Shipment;
 
     try {
-        console.log(`[Spot Config] Fetching shipment ${id} from ${BACKEND_API_URL}`);
         const response = await axios.get(`${BACKEND_API_URL}/shipments/${id}`, {
             headers: authHeader
         });
         const shipmentData = response.data.data || response.data;
-        
-        // Fetch Client (Organization)
+
         let client: Organization | undefined;
         if (shipmentData.organizationId) {
             try {
@@ -38,7 +43,6 @@ const fetchShipmentData = async (id: string, token?: string): Promise<SpotData> 
             }
         }
 
-        // Fetch Provider (Organization)
         let provider: Organization | undefined;
         if (shipmentData.selectedProviderId) {
             try {
@@ -51,34 +55,23 @@ const fetchShipmentData = async (id: string, token?: string): Promise<SpotData> 
             }
         }
 
-        // Combine into full Shipment object
-        shipment = {
-            ...shipmentData,
-            client,
-            provider
-        };
-
+        shipment = { ...shipmentData, client, provider };
     } catch (error) {
         if (axios.isAxiosError(error)) {
-             console.error('[PDF Service] Backend Fetch Error:', error.response?.status, error.response?.data);
-             throw new Error(`Failed to fetch shipment ${id} from backend: Request failed with status code ${error.response?.status}`);
+            console.error('[PDF Service] Backend Fetch Error:', error.response?.status, error.response?.data);
+            throw new Error(`Failed to fetch shipment ${id} from backend: Request failed with status code ${error.response?.status}`);
         }
-        console.error('[PDF Service] Backend Fetch Error:', error);
         throw new Error(`Failed to fetch shipment ${id} from backend: ${(error as any).message}`);
     }
 
-    // Mock translation function for now
     const t = (key: string) => key;
-
-    return {
-        shipment,
-        t
-    };
+    return { shipment, t };
 };
 
 export const spotTransportLetterConfig: DocumentConfig<SpotData> = {
     key: 'SPOT_TRANSPORT_LETTER',
     template: SpotTransportLetterPdf,
+    prepareData: prepareSpotData,
     fetchData: async (id, context) => fetchShipmentData(id, context?.token),
     getFilename: (data) => `Lettre_Transport_${data.shipment.trackingNumber || data.shipment.id}.pdf`
 };
@@ -86,6 +79,7 @@ export const spotTransportLetterConfig: DocumentConfig<SpotData> = {
 export const spotInvoiceConfig: DocumentConfig<SpotData> = {
     key: 'SPOT_INVOICE',
     template: SpotInvoicePdf,
+    prepareData: prepareSpotData,
     fetchData: async (id, context) => fetchShipmentData(id, context?.token),
     getFilename: (data) => `Facture_${data.shipment.trackingNumber || data.shipment.id}.pdf`
 };

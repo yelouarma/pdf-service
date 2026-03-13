@@ -124,6 +124,7 @@ const styles = StyleSheet.create({
 interface Props {
     shipment: Shipment;
     t: (key: string) => string;
+    vatRate?: number;  // Dynamic VAT rate (default: 0.20 for 20%)
 }
 
 const formatPrice = (amount: number) => {
@@ -176,7 +177,8 @@ const OrganizationDetails = ({ org, title }: { org?: Organization, title: string
     );
 };
 
-export const SpotInvoicePdf = ({ shipment, t }: Props) => {
+export const SpotInvoicePdf = ({ shipment, t, vatRate = 0.20 }: Props) => {
+    const effectiveVatRate = vatRate ?? 0.20;
     const provider = shipment.provider || {} as Organization;
     const client = shipment.client || {} as Organization;
     const date = format(new Date(), 'dd/MM/yyyy');
@@ -231,12 +233,12 @@ export const SpotInvoicePdf = ({ shipment, t }: Props) => {
                         <Text style={styles.totalValue}>{formatPrice(shipment.estimatedPrice || 0)}</Text>
                     </View>
                     <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>TVA (20%):</Text>
-                        <Text style={styles.totalValue}>{formatPrice((shipment.estimatedPrice || 0) * 0.2)}</Text>
+                        <Text style={styles.totalLabel}>TVA ({(effectiveVatRate * 100).toFixed(0)}%):</Text>
+                        <Text style={styles.totalValue}>{formatPrice((shipment.estimatedPrice || 0) * effectiveVatRate)}</Text>
                     </View>
                     <View style={[styles.totalRow, styles.grandTotal]}>
                         <Text style={[styles.totalLabel, { color: '#1e3a8a', fontWeight: 'bold' }]}>TOTAL TTC:</Text>
-                        <Text style={[styles.totalValue, { fontSize: 14 }]}>{formatPrice((shipment.estimatedPrice || 0) * 1.2)}</Text>
+                        <Text style={[styles.totalValue, { fontSize: 14 }]}>{formatPrice((shipment.estimatedPrice || 0) * (1 + effectiveVatRate))}</Text>
                     </View>
                 </View>
 
