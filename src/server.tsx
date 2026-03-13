@@ -4,6 +4,7 @@ import React from 'react';
 import path from 'path';
 import ReactPDF, { Font } from '@react-pdf/renderer';
 import { getDocumentConfig } from './registry';
+import { InvoiceDgiPdf } from './templates/InvoiceDgiPdf';
 
 // Resolve paths to fonts - relative to the CWD when running the service
 // In dev (ts-node-dev), process.cwd() is project root.
@@ -76,6 +77,36 @@ app.get('/generate', async (req, res) => {
         console.error('[PDF Service] Generation Error:', error);
         const msg = (error instanceof Error) ? error.message : 'Unknown error';
         res.status(500).json({ error: 'PDF Generation Failed', details: msg });
+    }
+});
+
+// --- Internal endpoint for backend-to-service invoice generation ---
+
+app.post('/internal/generate-invoice', async (req, res) => {
+    try {
+        const apiKey = req.headers['x-internal-key'];
+        if (apiKey !== process.env.INTERNAL_API_KEY) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const invoiceData = req.body;
+        if (!invoiceData || !invoiceData.invoiceNumber) {
+            return res.status(400).json({ error: 'Missing invoice data' });
+        }
+
+        console.log(`[PDF Service] Internal invoice generation for ${invoiceData.invoiceNumber}`);
+
+        const stream = await ReactPDF.renderToStream(<InvoiceDgiPdf {...invoiceData} />);
+
+        const filename = `${invoiceData.type === 'CREDIT_NOTE' ? 'Avoir' : 'Facture'}_${invoiceData.invoiceNumber}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+
+        stream.pipe(res);
+    } catch (error) {
+        console.error('[PDF Service] Internal Invoice Generation Error:', error);
+        const msg = (error instanceof Error) ? error.message : 'Unknown error';
+        res.status(500).json({ error: 'Invoice PDF Generation Failed', details: msg });
     }
 });
 
