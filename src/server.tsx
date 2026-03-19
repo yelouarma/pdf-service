@@ -1,7 +1,9 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import React from 'react';
 import path from 'path';
+import axios from 'axios';
 import ReactPDF, { Font } from '@react-pdf/renderer';
 import { getDocumentConfig } from './registry';
 import { requireInternalKey } from './middleware/authMiddleware';
@@ -36,14 +38,14 @@ app.get('/health', (_req, res) => {
 // Backend sends ALL data in the body. PDF service is a pure renderer.
 app.post('/internal/generate', async (req, res) => {
     try {
-        const { type, lang, ...data } = req.body;
+        const { type, lang, uploadUrl, ...data } = req.body;
 
         if (!type) {
             return res.status(400).json({ error: 'Missing "type" field in request body' });
         }
 
         const language = lang || 'fr';
-        console.log(`[PDF Service] POST /internal/generate — type=${type}, lang=${language}`);
+        console.log(`[PDF Service] POST /internal/generate — type=${type}, lang=${language}, uploadUrl=${uploadUrl ? 'yes' : 'no'}`);
 
         // 1. Get Registry Configuration
         const config = getDocumentConfig(type);
@@ -58,7 +60,24 @@ app.post('/internal/generate', async (req, res) => {
         const Template = config.template;
         const stream = await ReactPDF.renderToStream(<Template {...props} />);
 
-        // 4. Send Response
+        // 4a. If uploadUrl provided, collect bytes and upload to S3
+        if (uploadUrl) {
+            const chunks: Buffer[] = [];
+            for await (const chunk of stream as unknown as NodeReadable) {
+                chunks.push(Buffer.from(chunk));
+            }
+            const pdfBuffer = Buffer.concat(chunks);
+
+            await axios.put(uploadUrl, pdfBuffer, {
+                headers: { 'Content-Type': 'application/pdf' },
+                maxBodyLength: Infinity,
+            });
+
+            console.log(`[PDF Service] PDF uploaded to S3 (${pdfBuffer.length} bytes)`);
+            return res.status(200).json({ success: true, size: pdfBuffer.length });
+        }
+
+        // 4b. Otherwise, stream PDF bytes back to caller
         res.setHeader('Content-Type', 'application/pdf');
         const filename = config.getFilename ? config.getFilename(props) : `${type}.pdf`;
         res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
@@ -66,52 +85,6 @@ app.post('/internal/generate', async (req, res) => {
         (stream as unknown as NodeReadable).pipe(res);
     } catch (error) {
         console.error('[PDF Service] POST /internal/generate Error:', error);
-        const msg = (error instanceof Error) ? error.message : 'Unknown error';
-        res.status(500).json({ error: 'PDF Generation Failed', details: msg });
-    }
-});
-
-// --- DEPRECATED: GET /generate ---
-// Kept for backward compatibility until frontend migrates to backend endpoints.
-// Now requires X-Internal-Key (applied globally).
-app.get('/generate', async (req, res) => {
-    console.warn('[PDF Service] DEPRECATED: GET /generate — use POST /internal/generate instead');
-
-    try {
-        const { bookingId, lang } = req.query;
-        const type = (req.query.type as string) || 'CONTRACT';
-        const token = req.headers.authorization;
-        const language = (lang as string) || 'fr';
-
-        if (!bookingId) {
-            return res.status(400).json({ error: 'Missing bookingId parameter' });
-        }
-
-        console.log(`[PDF Service] Request for ${type} (ID: ${bookingId}, lang: ${language})`);
-
-        const config = getDocumentConfig(type);
-        if (!config) {
-            return res.status(400).json({ error: `Unsupported document type: ${type}` });
-        }
-
-        if (!config.fetchData) {
-            return res.status(400).json({ error: `Document type ${type} does not support GET /generate. Use POST /internal/generate.` });
-        }
-
-        const data = await config.fetchData(bookingId as string, { token, type, language, ...req.query });
-
-        const Template = config.template;
-        const stream = await ReactPDF.renderToStream(<Template {...data} />);
-
-        res.setHeader('Content-Type', 'application/pdf');
-        const filename = config.getFilename ? config.getFilename(data) : `${type}_${bookingId}.pdf`;
-        res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-        res.setHeader('X-Frame-Options', 'ALLOWALL');
-        res.setHeader('Content-Security-Policy', "frame-ancestors *");
-
-        stream.pipe(res);
-    } catch (error) {
-        console.error('[PDF Service] Generation Error:', error);
         const msg = (error instanceof Error) ? error.message : 'Unknown error';
         res.status(500).json({ error: 'PDF Generation Failed', details: msg });
     }

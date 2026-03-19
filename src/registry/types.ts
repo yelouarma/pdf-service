@@ -23,12 +23,6 @@ export interface DocumentConfig<T = any> {
     prepareData: (body: Record<string, any>, lang: string) => T;
 
     /**
-     * @deprecated Use prepareData instead. Will be removed once frontend migrates to backend endpoints.
-     * Function to fetch data from external sources (Backend API)
-     */
-    fetchData?: (id: string, context?: any) => Promise<T>;
-
-    /**
      * Optional: Generate filename based on data
      */
     getFilename?: (data: T) => string;
