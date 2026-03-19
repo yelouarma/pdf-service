@@ -45,3 +45,4 @@ To connect this service to your backend, you **must** configure the `BACKEND_API
 ```
 GET /generate?bookingId=123&type=CONTRACT&lang=fr
 ```
+
