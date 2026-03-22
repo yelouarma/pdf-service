@@ -20,8 +20,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --production
 
-# Copy built assets
+# Copy built assets and static resources
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/assets ./assets
 
 EXPOSE 3002
 
